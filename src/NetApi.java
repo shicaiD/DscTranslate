@@ -1,16 +1,13 @@
-import com.google.gson.JsonObject;
-import com.sun.javafx.fxml.builder.URLBuilder;
-import net.sf.json.JSONObject;
-import org.apache.http.client.HttpClient;
-import org.apache.http.conn.ConnectTimeoutException;
+
+
+import org.apache.commons.httpclient.HttpClient;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.HttpGet;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.ProtocolException;
-import java.net.URL;
+import java.net.*;
 
 /**
  * Created by shicaiD on 2016/5/20.
@@ -41,21 +38,27 @@ public class NetApi {
             URL url = new URL(getRequstUrl(toTranslate));
             System.out.println("TAG: url= "+url.toString());
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            //config
+            conn.setDoInput(true);
+            conn.setDoOutput(true);
             conn.setRequestMethod("GET");
+            conn.setRequestProperty("Content-type", "text/html");
+            conn.setRequestProperty("Accept-Charset", "utf-8");
+            conn.setRequestProperty("contentType", "utf-8");
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
             if (conn.getResponseCode() == 200){//成功
                 //获取返回数据
-                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(),"UTF-8"));
                 String line = "";
-                StringBuffer sb = new StringBuffer();
+                StringBuilder sb = new StringBuilder();
                 while ((line=reader.readLine())!=null){
                     sb.append(line);
                 }
-                return sb.toString();
+                String result = sb.toString();
+                return result;
             }else {
-                throw new RuntimeException("网络错误，请重试");
-
+                System.out.println("网络错误，请重试");
             }
         } catch (ProtocolException e) {
             e.printStackTrace();

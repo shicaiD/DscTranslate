@@ -1,5 +1,6 @@
-import net.sf.json.JSONArray;
-import net.sf.json.JSONObject;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.*;
 
@@ -37,16 +38,16 @@ public class ToTranslate {
     private String translation = "";//"xxx,xxx"的形式返回
     private String us_phonetic = "";//[træns'leʃən]的形式放回
     private String uk_phonetic = "";//[træns'leʃən]的形式放回
-    private Object[] explains;   //全部意译
-    private List<Map<String,Object[]>> web = new ArrayList<>();   //全部网络意译
+    private String explains;   //全部意译
+    private List<Map<String,String>> web = new ArrayList<>();   //全部网络意译
 
     private JSONObject jsonObject = null;
-    public ToTranslate(String translateResult){
+    public ToTranslate(String translateResult) throws JSONException {
         if (translateResult == null){
             System.out.println(TAG+":translateResult=null");
         }else {
             System.out.println(TAG+":translateResult="+translateResult);
-            jsonObject = JSONObject.fromObject(translateResult);
+            jsonObject = new JSONObject(translateResult);
         }
     }
 
@@ -54,7 +55,7 @@ public class ToTranslate {
      * 查询的单词
      * @return
      */
-    private String getQuery() {
+    private String getQuery() throws JSONException {
         query = (String) jsonObject.get(QUERY);
         return query;
     }
@@ -63,12 +64,8 @@ public class ToTranslate {
      * 意译结果
      * @return
      */
-    private String getTranslation() {
-        Object[] object = jsonObject.getJSONArray(TRANSLATION).toArray();
-        for (Object o : object) {
-            translation += o.toString()+",";
-        }
-        translation = translation.substring(0,translation.length()-1);
+    private String getTranslation() throws JSONException {
+        translation = jsonObject.getJSONArray(TRANSLATION).toString();
         return translation;
     }
 
@@ -76,12 +73,16 @@ public class ToTranslate {
      * 美式发音
      * @return
      */
-    private String getUs_phonetic() {
+    private String getUs_phonetic() throws JSONException {
+        if (!jsonObject.has(BASIC)){
+            return null;
+        }
         JSONObject json = jsonObject.getJSONObject(BASIC);
-        if (json==null){
+        if (!json.has(US_PHONETIC)){
             return null;
         }
         us_phonetic = "["+json.get(US_PHONETIC)+"]";
+        System.out.println("us_phonetic="+us_phonetic);
         return us_phonetic;
     }
 
@@ -89,9 +90,12 @@ public class ToTranslate {
      * 英式发音
      * @return
      */
-    private String getUk_phonetic() {
+    private String getUk_phonetic() throws JSONException {
+        if (!jsonObject.has(BASIC)){
+            return null;
+        }
         JSONObject json = jsonObject.getJSONObject(BASIC);
-        if (json==null){
+        if (!json.has(UK_PHONETIC)){
             return null;
         }
         uk_phonetic = "["+json.get(UK_PHONETIC)+"]";
@@ -102,16 +106,19 @@ public class ToTranslate {
      * 更多意译结果
      * @return
      */
-    private Object[] getExplains() {
+    private String getExplains() throws JSONException {
+        if (!jsonObject.has(BASIC)){
+            return null;
+        }
         JSONObject json = jsonObject.getJSONObject(BASIC);
-        if (json==null){
+        if (!json.has(EXPLAINS)){
             return null;
         }
         JSONArray array = json.getJSONArray(EXPLAINS);
-        if (array == null){
-            return null;
-        }
-        explains = array.toArray();
+        explains = array.toString();
+        explains = explains.replaceAll("\",\"","\n");
+        explains = explains.replaceAll("\"]","");
+        explains = explains.replaceAll("\\[\"","");
         return explains;
     }
 
@@ -119,15 +126,15 @@ public class ToTranslate {
      * 网络意译
      * @return
      */
-    private List<Map<String,Object[]>> getWeb() {
-        JSONArray arrays = jsonObject.getJSONArray(WEB);
-        if (arrays==null){
+    private List<Map<String,String>> getWeb() throws JSONException {
+        if (!jsonObject.has(WEB)){
             return null;
         }
-        for (int i = 0; i < arrays.size(); i++) {
+        JSONArray arrays = jsonObject.getJSONArray(WEB);
+        for (int i = 0; i < arrays.length(); i++) {
             JSONObject json = arrays.getJSONObject(i);
-            Map<String,Object[]> map = new HashMap<>();
-            map.put((String) json.get(KEY)+i,json.getJSONArray(VALUE).toArray());//+i确保重复的key不会覆盖
+            Map<String,String> map = new HashMap<>();
+            map.put((String) json.get(KEY)+i,json.getJSONArray(VALUE).toString());//+i确保重复的key不会覆盖
             web.add(map);
             json = null;
             map = null;
@@ -168,39 +175,34 @@ public class ToTranslate {
         if (jsonObject == null){
             result = "未知错误";
         }else {
-            int responseCode = (int)jsonObject.get(ERRORCODE);//获取返回码
+            int responseCode = 0;//获取返回码
             try {
+                responseCode = (int)jsonObject.get(ERRORCODE);
                 getResponseCode(responseCode);
-                result = getQuery()+" : "+getTranslation()+"\n ";
+                result = getQuery()+" : "+getTranslation()+"\n";
                 String temp = null;
                 if ((temp = getUs_phonetic()) != null){
-                    result += "美式:"+temp+" ；";
+                    result += "美式: "+temp+" ；";
                     temp = null;
                 }
                 if ((temp = getUk_phonetic()) != null){
-                    result += "英式:"+temp+"\n";
+                    result += "英式: "+temp+"\n";
+                    temp = null;
+                }
+                if ((temp = getExplains())!=null){
+                    result += temp+"\n";
                     temp = null;
                 }
                 Object[] objects = null;
-                if ((objects = getExplains()) != null){
-                    for (Object object : objects) {
-                        result += object.toString()+"\n";
-                    }
-                    objects =null;
-                }
-                List<Map<String,Object[]>> list = null;
+                List<Map<String,String>> list = null;
                 if ((list = getWeb()) != null){
                     result += "网络意译：\n";
-                    for (Map<String, Object[]> map : list) {
+                    for (Map<String, String> map : list) {
                         Set<String> keys = map.keySet();
                         for (String key : keys) {
-                            result += key.substring(0,key.length()-1)+":";
-                            Object[] objects1 = map.get(key);
-                            for (Object o : objects1) {
-                                result += o.toString()+";";
-                            }
-                            result = result.substring(0,result.length()-1);
-                            result += "\n";
+                            result += key.substring(0,key.length()-1)+": ";
+                            String objects1 = map.get(key);
+                            result += objects1+"\n";
                         }
                     }
                 }
